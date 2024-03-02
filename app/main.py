@@ -1,16 +1,12 @@
 import logging
 import os
-import pathlib
 import sys
-import tempfile
 import requests
 from functools import wraps
 import time
 from typing import List
 
-
-from logging import Formatter, getLogger
-from logging import FileHandler
+from logging import Formatter, getLogger, FileHandler
 
 _logger = getLogger(__name__)
 _logger.setLevel(logging.DEBUG)
@@ -19,6 +15,7 @@ DEFAULT_TIMEOUT = 600
 DEFAULT_VERSION = "0.12.6"
 LIMIT_SIZE = 100000000
 LOG_FILEPATH = os.path.join(os.path.expanduser("~"), "wkhtmltopdf.log")
+REPORT_API_URL = os.getenv("REPORT_API_URL")
 
 handler = FileHandler(LOG_FILEPATH)
 
@@ -28,16 +25,6 @@ formatter = Formatter(
 )
 handler.setFormatter(formatter)
 _logger.addHandler(handler)
-
-
-try:
-    REPORT_API_URL = os.getenv("REPORT_API_URL")
-    if not REPORT_API_URL:
-        _logger.error("Report API url is not defined.")
-        sys.exit("Report API url is not defined.")
-except Exception as error:
-    _logger.error(error)
-    sys.exit(error)
 
 
 def logs(function):
@@ -158,6 +145,10 @@ def guess_output(paths: List) -> str:
 @logs
 def main() -> None:
     args = sys.argv[1:]
+
+    if not REPORT_API_URL:
+        _logger.error("Report API url is not defined.")
+        sys.exit("Report API url is not defined.")
 
     if not args:
         sys.exit(0)

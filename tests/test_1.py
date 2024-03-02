@@ -1,7 +1,7 @@
-from app.core.tools import parse_args
+from app.main import parse_args
 
 
-def test_base_url():
+def test_1():
     args = [
         "--disable-local-file-access",
         "--cookie",
@@ -72,6 +72,45 @@ def test_base_url():
         "Portrait",
         "/tmp/report.header.tmp.9vjh34yx.html",
         "/tmp/report.footer.tmp.0khx6434.html",
+    ]
+
+    assert res["bodies"] == ["/tmp/report.body.tmp.0.uwctzvc6.html"]
+
+
+def test_2():
+    args = [
+        "--disable-local-file-access",
+        "--quiet",
+        "--page-size",
+        "A4",
+        "--orientation",
+        "Portrait",
+        "--header-html",
+        "/tmp/report.header.tmp.9vjh34yx.html",
+        "/tmp/report.body.tmp.0.uwctzvc6.html",
+        "/tmp/report.tmp.gzumzohi.pdf",
+    ]
+
+    res = parse_args(args)
+
+    assert res["output"] == "/tmp/report.tmp.gzumzohi.pdf"
+
+    assert len(res["dict_args"].keys()) == 5
+
+    assert list(res["dict_args"].keys()) == [
+        "disable-local-file-access",
+        "quiet",
+        "page-size",
+        "orientation",
+        "header-html",
+    ]
+
+    assert list(res["dict_args"].values()) == [
+        None,
+        None,
+        "A4",
+        "Portrait",
+        "/tmp/report.header.tmp.9vjh34yx.html",
     ]
 
     assert res["bodies"] == ["/tmp/report.body.tmp.0.uwctzvc6.html"]
