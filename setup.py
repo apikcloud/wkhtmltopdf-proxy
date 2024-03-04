@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 
 setup(
     name="wkhtmltopdf-api",
-    version="0.0.1",
+    version="0.0.2",
     description="Wkhtmltopdf API Wrapper",
     long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",

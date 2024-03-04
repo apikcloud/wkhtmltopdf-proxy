@@ -44,7 +44,7 @@ def logs(function):
 
 
 @logs
-def parse_args(args: List) -> dict:
+def parse_args(input_args: List) -> dict:
     def is_arg(value):
         return value.startswith("--")
 
@@ -58,6 +58,7 @@ def parse_args(args: List) -> dict:
         # Python <= 3.8
         return value.replace(prefix, "") if value.startswith(prefix) else value
 
+    args = input_args.copy()
     vals = {
         "output": args.pop(),
         "header": False,
@@ -143,18 +144,19 @@ def guess_output(paths: List) -> str:
 
 
 @logs
-def main() -> None:
-    args = sys.argv[1:]
-
-    if not REPORT_API_URL:
-        _logger.error("Report API url is not defined.")
-        sys.exit("Report API url is not defined.")
+def main(args: list = []) -> None:
+    if not args:
+        args = sys.argv[1:]
 
     if not args:
         sys.exit(0)
 
     if len(args) == 1 and args[0] == "--version":
         return get_version()
+
+    if not REPORT_API_URL:
+        _logger.error("Report API url is not defined.")
+        sys.exit("Report API url is not defined.")
 
     parsed_args = parse_args(args)
 
