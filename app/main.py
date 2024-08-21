@@ -1,12 +1,13 @@
 import logging
 import os
+import re
 import sys
-import requests
-from functools import wraps
 import time
+from functools import wraps
+from logging import FileHandler, Formatter, getLogger
 from typing import List
 
-from logging import Formatter, getLogger, FileHandler
+import requests
 
 _logger = getLogger(__name__)
 _logger.setLevel(logging.DEBUG)
@@ -16,6 +17,8 @@ DEFAULT_VERSION = "0.12.6"
 LIMIT_SIZE = 100000000
 LOG_FILEPATH = os.path.join(os.path.expanduser("~"), "wkhtmltopdf.log")
 REPORT_API_URL = os.getenv("REPORT_API_URL")
+
+SESSION_PATTERN = r"session_id=([a-z0-9]*)"
 
 handler = FileHandler(LOG_FILEPATH)
 
@@ -63,6 +66,8 @@ def parse_args(input_args: List) -> dict:
         "output": args.pop(),
         "header": False,
         "footer": False,
+        "header-html": False,
+        "footer-html": False,
     }
     dict_args = {}
     first_index, last_index = 0, 0
@@ -93,6 +98,12 @@ def parse_args(input_args: List) -> dict:
             dict_args[name] = values[0]
         else:
             dict_args[name] = values
+
+    # session_id=af8671bxxxxxxxxxxxxxxxx; HttpOnly; domain=test.com; path=/;
+    if cookie_jar := dict_args.pop("cookie-jar", None):
+        with open(cookie_jar, encoding="utf-8") as file:
+            cookie = re.search(SESSION_PATTERN, file.read().strip()).group(0).split("=")
+            dict_args["cookie"] = cookie
 
     vals.update(
         {
@@ -159,6 +170,8 @@ def main(args: list = []) -> None:
         sys.exit("Report API url is not defined.")
 
     parsed_args = parse_args(args)
+
+    _logger.debug(parsed_args)
 
     header_path = parsed_args["dict_args"].get("header-html", "")
     footer_path = parsed_args["dict_args"].get("footer-html", "")

@@ -1,12 +1,12 @@
+import pytest
+
+from app.main import main, parse_args
 from base import BaseClass
 
 
-class TestClass1(BaseClass):
+class TestClass3(BaseClass):
     args = [
         "--disable-local-file-access",
-        "--cookie",
-        "session_id",
-        "b93c54121419ae98e81a6e038d93b503b706e04c",
         "--quiet",
         "--page-size",
         "A4",
@@ -21,22 +21,25 @@ class TestClass1(BaseClass):
         "--margin-left",
         "7.0",
         "--margin-bottom",
-        "28.0",
+        "32.0",
         "--margin-right",
         "7.0",
         "--orientation",
         "Portrait",
+        "--javascript-delay",
+        "1000",
+        "--cookie-jar",
+        "test_3_cookie.txt",
         "--header-html",
-        "/tmp/report.header.tmp.9vjh34yx.html",
+        "/tmp/report.header.tmp.mhumnhzg.html",
         "--footer-html",
-        "/tmp/report.footer.tmp.0khx6434.html",
-        "/tmp/report.body.tmp.0.uwctzvc6.html",
-        "/tmp/report.tmp.gzumzohi.pdf",
+        "/tmp/report.footer.tmp.rgg3nfk0.html",
+        "/tmp/report.body.tmp.0.2x3usqzz.html",
+        "/tmp/output.pdf",
     ]
 
     dict_args = {
         "disable-local-file-access": None,
-        "cookie": ["session_id", "b93c54121419ae98e81a6e038d93b503b706e04c"],
         "quiet": None,
         "page-size": "A4",
         "margin-top": "40.0",
@@ -44,13 +47,14 @@ class TestClass1(BaseClass):
         "zoom": "1.0666666666666667",
         "header-spacing": "35",
         "margin-left": "7.0",
-        "margin-bottom": "28.0",
+        "margin-bottom": "32.0",
         "margin-right": "7.0",
         "orientation": "Portrait",
-        "header-html": "/tmp/report.header.tmp.9vjh34yx.html",
-        "footer-html": "/tmp/report.footer.tmp.0khx6434.html",
+        "javascript-delay": "1000",
+        "header-html": "/tmp/report.header.tmp.mhumnhzg.html",
+        "footer-html": "/tmp/report.footer.tmp.rgg3nfk0.html",
+        "cookie": ["session_id", "af8671bxxxxxxxxxxxxxxxx"],
     }
 
-    output = "/tmp/report.tmp.gzumzohi.pdf"
-    bodies = ["/tmp/report.body.tmp.0.uwctzvc6.html"]
-    cookies = ["session_id", "b93c54121419ae98e81a6e038d93b503b706e04c"]
+    output = "/tmp/output.pdf"
+    bodies = ["/tmp/report.body.tmp.0.2x3usqzz.html"]

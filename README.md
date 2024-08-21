@@ -39,4 +39,3 @@ Same as wkhtmltopdf, see options : https://wkhtmltopdf.org/usage/wkhtmltopdf.txt
 wkhtmltopdf-api --disable-local-file-access --cookie session_id abcd --quiet --page-size A4 --margin-top 40.0 --dpi 90 --zoom 1.0666666666666667 --header-spacing 35 --margin-left 7.0 --margin-bottom 28.0 --margin-right 7.0 --orientation Portrait --header-html /tmp/report.header.tmp.xxx.html --footer-html /tmp/report.footer.tmp.xxx.html /tmp/report.body.tmp.xxx.html /tmp/report.tmp.xxx.pdf
 
 ```
-

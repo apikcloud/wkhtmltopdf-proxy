@@ -1,6 +1,3 @@
-import pytest
-
-from app.main import main, parse_args
 from base import BaseClass
 
 

@@ -1,7 +1,6 @@
 import pytest
 
-from app.main import main, parse_args
-from base import BaseClass
+from app.main import main
 
 
 def test_01_exit():
