@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import re
@@ -7,6 +8,7 @@ from functools import wraps
 from typing import List
 
 import requests
+from icecream import ic
 
 DEFAULT_TIMEOUT = 600
 DEFAULT_VERSION = "0.12.6"
@@ -14,7 +16,6 @@ DEFAULT_THRESHOLD = 2 * 1024 * 1024
 DEFAULT_LIMIT_SIZE = 100000000
 VALID_MODES = {"auto", "local", "remote"}
 SESSION_PATTERN = r"session_id=([^;]+)"
-
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -129,13 +130,16 @@ def parse_args(input_args: List) -> dict:
     if cookie_jar := dict_args.pop("cookie-jar", None):
         with open(cookie_jar, encoding="utf-8") as file:
             cookie = re.search(SESSION_PATTERN, file.read().strip()).group(0).split("=")
-            dict_args["cookie"] = cookie
+            # Cookies must be paired by name and value.
+            # https://stackoverflow.com/questions/58571962/how-to-send-cookies-with-pdfkit-in-python
+            # FIXME: Is it used? Even without it works...
+            dict_args["cookie"] = [(cookie[0], cookie[1])]
             # TODO: make cookies
 
     vals.update(
         {
             "dict_args": dict_args,
-            "bodies": args[last_index + 1 :],
+            "bodies": args[last_index + 1:],
         }
     )
 
@@ -145,7 +149,11 @@ def parse_args(input_args: List) -> dict:
 @logs
 def send_request(url: str, files: List, data: dict, output_filepath: str) -> None:
     with requests.post(
-        url, files=files, data=data, stream=True, timeout=get_timeout()
+        url,
+        files=files,
+        data=data,
+        stream=True,
+        timeout=get_timeout()
     ) as response:
         try:
             response.raise_for_status()
@@ -174,7 +182,10 @@ def guess_output(paths: List) -> str:
 
 
 @logs
-def main(args: list = []) -> None:
+def main(args: list = None) -> None:
+    if args is None:
+        args = []
+
     if not args:
         args = sys.argv[1:]
 
@@ -240,20 +251,21 @@ def main(args: list = []) -> None:
         if value := parsed_args["dict_args"].get(key):
             parsed_args["dict_args"][key] = os.path.basename(value)
 
-    # FIXME: args should be a list of keys/values or something similar,
-    # but sending as str for now to avoid conflicts with files on server side
-    data = {
-        "args": str(parsed_args["dict_args"]),
-        # "values": list(parsed_args["dict_args"].values()),
+    # Construct the nested JSON structure to send to the API not to send a plain string.
+    metadata_json_str = json.dumps(parsed_args["dict_args"])
+    args_dict = {"metadata": metadata_json_str}
+    args_payload_str = json.dumps(args_dict)
+
+    data_payload = {
+        "args": args_payload_str,
         "header": os.path.basename(header_path),
         "footer": os.path.basename(footer_path),
         "output": guess_output(paths),
         "clean": False,
     }
 
-    logging.debug(f"Data: {data}")
-    logging.debug(f"Args {type(data['args'])}: {data['args']}")
+    logging.debug(f"Data: {args_payload_str}")
 
-    send_request(url, files, data, parsed_args["output"])
+    send_request(url, files, data_payload, parsed_args["output"])
 
     sys.exit(0)
