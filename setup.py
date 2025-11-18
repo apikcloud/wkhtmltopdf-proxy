@@ -33,7 +33,7 @@ setup(
     python_requires=">=3.8",
     entry_points={
         "console_scripts": [
-            "wkhtmltopdf-proxy = src.main:main",
+            "wkhtmltopdf-proxy = wkhtmltopdf_proxy.main:main",
         ],
     },
 )

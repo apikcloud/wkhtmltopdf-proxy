@@ -1,0 +1,12 @@
+[run]
+# Files and directories to always include in measurement
+source =
+    wkhtmltopdf_proxy
+
+[report]
+# Files and directories to omit from the report (tests don't need to be covered)
+omit =
+    */__init__.py
+    */__pycache__/*
+    tests/*
+    build/*
