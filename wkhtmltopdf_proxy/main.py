@@ -13,6 +13,7 @@ from icecream import ic
 DEFAULT_TIMEOUT = 600
 DEFAULT_VERSION = "0.12.6"
 DEFAULT_THRESHOLD = 2 * 1024 * 1024
+DEFAULT_CLEAN_HTML = 0
 DEFAULT_LIMIT_SIZE = 100000000
 VALID_MODES = {"auto", "local", "remote"}
 SESSION_PATTERN = r"session_id=([^;]+)"
@@ -73,6 +74,10 @@ def get_threshold() -> int:
     return int(os.getenv("WKHTMLTOPDF_PROXY_THRESHOLD", DEFAULT_THRESHOLD))
 
 
+def get_clean() -> int:
+    """Set 1 to clean HTML before processing, 0 to skip cleaning."""
+    return bool(int(os.getenv("WKHTMLTOPDF_CLEAN_HTML", DEFAULT_CLEAN_HTML)))
+
 @logs
 def parse_args(input_args: List) -> dict:
     def is_arg(value):
@@ -87,6 +92,8 @@ def parse_args(input_args: List) -> dict:
     def removeprefix(value, prefix="--"):
         # Python <= 3.8
         return value.replace(prefix, "") if value.startswith(prefix) else value
+
+    ic(input_args)
 
     args = input_args.copy()
     vals = {
@@ -142,6 +149,8 @@ def parse_args(input_args: List) -> dict:
             "bodies": args[last_index + 1:],
         }
     )
+
+    ic(vals)
 
     return vals
 
@@ -245,7 +254,7 @@ def main(args: list = None) -> None:
             sizeof(paths),
             threshold,
         )
-        raise NotImplementedError("Auto mode is not implemented yet.")
+        return os.execvp("wkhtmltopdf", ["wkhtmltopdf"] + args)
 
     for key in ["header-html", "footer-html"]:
         if value := parsed_args["dict_args"].get(key):
@@ -253,18 +262,16 @@ def main(args: list = None) -> None:
 
     # Construct the nested JSON structure to send to the API not to send a plain string.
     metadata_json_str = json.dumps(parsed_args["dict_args"])
-    args_dict = {"metadata": metadata_json_str}
-    args_payload_str = json.dumps(args_dict)
 
     data_payload = {
-        "args": args_payload_str,
+        "args": metadata_json_str,
         "header": os.path.basename(header_path),
         "footer": os.path.basename(footer_path),
         "output": guess_output(paths),
-        "clean": False,
+        "clean": get_clean(),
     }
 
-    logging.debug(f"Data: {args_payload_str}")
+    logging.debug(f"Data: {metadata_json_str}")
 
     send_request(url, files, data_payload, parsed_args["output"])
 
