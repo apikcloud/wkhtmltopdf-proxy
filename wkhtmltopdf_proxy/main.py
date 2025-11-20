@@ -4,17 +4,12 @@ import os
 import re
 import sys
 import time
+from dataclasses import dataclass
 from functools import wraps
-from typing import List
+from typing import List, Literal, cast
 
 import requests
-from icecream import ic
 
-DEFAULT_TIMEOUT = 600
-DEFAULT_VERSION = "0.12.6"
-DEFAULT_THRESHOLD = 2 * 1024 * 1024
-DEFAULT_CLEAN_HTML = 0
-DEFAULT_LIMIT_SIZE = 100000000
 VALID_MODES = {"auto", "local", "remote"}
 SESSION_PATTERN = r"session_id=([^;]+)"
 
@@ -42,44 +37,44 @@ def logs(function):
     return wrapper
 
 
-def get_version() -> str:
-    """Emulate wkhtmltopdf --version output."""
+@dataclass(frozen=True)
+class ProxyConfig:
+    timeout: int
+    version: str
+    threshold: int
+    clean_html: bool
+    mode: Literal["auto", "local", "remote"]
+    url: str
+    skip_cookie: bool = False
 
-    version = os.getenv("WKHTMLTOPDF_PROXY_VERSION", DEFAULT_VERSION)
-    return f"wkhtmltopdf {version} (with patched qt)"
+    @classmethod
+    def load(cls) -> "ProxyConfig":
+        """Load configuration from environment variables."""
+        mode = os.getenv("WKHTMLTOPDF_PROXY_MODE", "remote").lower()
+        if mode not in VALID_MODES:
+            logging.warning(f"Invalid mode '{mode}', falling back to 'remote'")
+            mode = "remote"
 
+        return cls(
+            timeout=int(os.getenv("WKHTMLTOPDF_PROXY_TIMEOUT", 600)),
+            version=os.getenv("WKHTMLTOPDF_PROXY_VERSION", "0.12.6"),
+            threshold=int(os.getenv("WKHTMLTOPDF_PROXY_THRESHOLD", 2 * 1024 * 1024)),
+            clean_html=bool(int(os.getenv("WKHTMLTOPDF_CLEAN_HTML", 0))),
+            mode=cast(Literal["auto", "local", "remote"], mode),
+            url=os.getenv("WKHTMLTOPDF_PROXY_URL", ""),
+            skip_cookie=bool(int(os.getenv("WKHTMLTOPDF_PROXY_SKIP_COOKIE", 0))),
+        )
 
-def get_timeout() -> int:
-    """Get the timeout for the report API requests."""
+    @property
+    def version_string(self) -> str:
+        return f"wkhtmltopdf {self.version} (with patched qt)"
 
-    timeout = os.getenv("WKHTMLTOPDF_PROXY_TIMEOUT", DEFAULT_TIMEOUT)
-    return int(timeout)
+    def to_json(self) -> str:
+        return json.dumps(self.__dict__, indent=2)
 
-
-def get_url() -> str:
-    """Get the report API URL from environment variable."""
-
-    return os.getenv("WKHTMLTOPDF_PROXY_URL", "")
-
-
-def get_mode() -> str:
-    """Get the proxy mode from environment variable."""
-
-    return os.getenv("WKHTMLTOPDF_PROXY_MODE", "remote").lower()
-
-
-def get_threshold() -> int:
-    """Get the size threshold for auto mode from environment variable."""
-
-    return int(os.getenv("WKHTMLTOPDF_PROXY_THRESHOLD", DEFAULT_THRESHOLD))
-
-
-def get_clean() -> int:
-    """Set 1 to clean HTML before processing, 0 to skip cleaning."""
-    return bool(int(os.getenv("WKHTMLTOPDF_CLEAN_HTML", DEFAULT_CLEAN_HTML)))
 
 @logs
-def parse_args(input_args: List) -> dict:
+def parse_args(input_args: List, skip_cookie: bool = False) -> dict:
     def is_arg(value):
         return value.startswith("--")
 
@@ -93,7 +88,7 @@ def parse_args(input_args: List) -> dict:
         # Python <= 3.8
         return value.replace(prefix, "") if value.startswith(prefix) else value
 
-    ic(input_args)
+    logging.debug(f"Input arguments: \n{input_args}")
 
     args = input_args.copy()
     vals = {
@@ -133,37 +128,35 @@ def parse_args(input_args: List) -> dict:
         else:
             dict_args[name] = values
 
-    # session_id=af8671bxxxxxxxxxxxxxxxx; HttpOnly; domain=test.com; path=/;
-    if cookie_jar := dict_args.pop("cookie-jar", None):
+    # Handle cookie-jar to extract session_id cookie
+    if not skip_cookie and (cookie_jar := dict_args.pop("cookie-jar", None)):
         with open(cookie_jar, encoding="utf-8") as file:
-            cookie = re.search(SESSION_PATTERN, file.read().strip()).group(0).split("=")
-            # Cookies must be paired by name and value.
-            # https://stackoverflow.com/questions/58571962/how-to-send-cookies-with-pdfkit-in-python
-            # FIXME: Is it used? Even without it works...
-            dict_args["cookie"] = [(cookie[0], cookie[1])]
-            # TODO: make cookies
+            match = re.search(SESSION_PATTERN, file.read().strip())
+
+            if match and (cookie := match.group(0).split("=")):
+                # Cookies must be paired by name and value.
+                # session_id=af8671bxxxxxxxxxxxxxxxx; HttpOnly; domain=test.com; path=/;
+                # https://stackoverflow.com/questions/58571962/how-to-send-cookies-with-pdfkit-in-python
+
+                dict_args["cookie"] = [(cookie[0], cookie[1])]
 
     vals.update(
         {
             "dict_args": dict_args,
-            "bodies": args[last_index + 1:],
+            "bodies": args[last_index + 1 :],
         }
     )
 
-    ic(vals)
+    logging.debug(f"Parsed values: \n{vals}")
 
     return vals
 
 
 @logs
-def send_request(url: str, files: List, data: dict, output_filepath: str) -> None:
-    with requests.post(
-        url,
-        files=files,
-        data=data,
-        stream=True,
-        timeout=get_timeout()
-    ) as response:
+def send_request(
+    url: str, files: List, data: dict, output_filepath: str, **kwargs
+) -> None:
+    with requests.post(url, files=files, data=data, stream=True, **kwargs) as response:
         try:
             response.raise_for_status()
         except requests.exceptions.HTTPError as error:
@@ -182,16 +175,24 @@ def sizeof(paths: List[str]) -> int:
     return sum([os.stat(path).st_size for path in paths])
 
 
-def guess_output(paths: List) -> str:
+def guess_output(paths: List, threshold: int) -> str:
     # TODO: don't remember why I did this
     total = sizeof(paths)
     logging.warning("Total size of files: %d", total)
 
-    return "auto" if total >= DEFAULT_LIMIT_SIZE else "standard"
+    return "auto" if total >= threshold else "standard"
+
+
+def minify_html(html: str) -> str:
+    """Minify HTML by removing extra whitespace and line breaks."""
+
+    lines = html.splitlines()
+    compact = [line.strip() for line in lines if line.strip()]
+    return "".join(compact)
 
 
 @logs
-def main(args: list = None) -> None:
+def main(args: list | None = None) -> None:
     if args is None:
         args = []
 
@@ -201,27 +202,28 @@ def main(args: list = None) -> None:
     if not args:
         sys.exit(0)
 
+    config = ProxyConfig.load()
+
     # Emulate wkhtmltopdf version command
     if len(args) == 1 and args[0] == "--version":
-        print(get_version())
+        print(config.version_string)
         sys.exit(0)
 
-    url = get_url()
-    mode = get_mode()
-    threshold = get_threshold()
-
-    if not url:
+    if not config.url:
         logging.error("Proxy URL is not defined.")
         sys.exit("Proxy URL is not defined.")
 
-    if mode not in VALID_MODES:
-        logging.error("Invalid mode: %s", mode)
+    if config.mode not in VALID_MODES:
+        logging.error("Invalid mode: %s", config.mode)
         sys.exit(
-            f"Invalid proxy mode '{mode}'. Must be one of {', '.join(VALID_MODES)}."
+            f"Invalid proxy mode '{config.mode}'. Must be one of {', '.join(VALID_MODES)}."
         )
 
+    logging.info("New wkhtmltopdf proxy request")
+    logging.info(f"Using configuration: {config.to_json()}")
+
     # TODO: Implement local mode. Act as a wrapper to local wkhtmltopdf binary.
-    if mode == "local":
+    if config.mode == "local":
         logging.info("Using local wkhtmltopdf.")
         return os.execvp("wkhtmltopdf", ["wkhtmltopdf"] + args)
 
@@ -241,38 +243,54 @@ def main(args: list = None) -> None:
 
     logging.debug(f"Paths: {paths}")
 
+    # Clean HTML files if enabled
+    if config.clean_html:
+        for path in paths:
+            if not os.path.exists(path):
+                continue
+
+            old_size = os.stat(path).st_size
+
+            with open(path, encoding="utf-8", mode="r+") as file:
+                minified_content = minify_html(file.read())
+                file.seek(0)
+                file.write(minified_content)
+                file.truncate()
+
+            new_size = os.stat(path).st_size
+            logging.info(f"Minified {path}: {old_size} bytes to {new_size} bytes")
+
+    # Prepare files for request (multipart/form-data)
     files = [("files", open(path, "rb")) for path in paths if os.path.exists(path)]
 
     if not files:
         logging.error("No files provided.")
         sys.exit("No files provided.")
 
-    # TODO: Implement auto mode, decide based on total size of files.
-    if mode == "auto" and sizeof(paths) < threshold:
+    # Auto mode: decide based on total size of files
+    if config.mode == "auto" and sizeof(paths) < config.threshold:
         logging.info(
             "Total size of files (%d bytes) is below threshold (%d bytes). Using local wkhtmltopdf.",
             sizeof(paths),
-            threshold,
+            config.threshold,
         )
         return os.execvp("wkhtmltopdf", ["wkhtmltopdf"] + args)
 
+    # Header and footer filenames need to be known by the API
     for key in ["header-html", "footer-html"]:
         if value := parsed_args["dict_args"].get(key):
             parsed_args["dict_args"][key] = os.path.basename(value)
 
-    # Construct the nested JSON structure to send to the API not to send a plain string.
-    metadata_json_str = json.dumps(parsed_args["dict_args"])
-
     data_payload = {
-        "args": metadata_json_str,
+        "args": json.dumps(parsed_args["dict_args"]),
         "header": os.path.basename(header_path),
         "footer": os.path.basename(footer_path),
-        "output": guess_output(paths),
-        "clean": get_clean(),
+        "output": guess_output(paths, config.threshold),
+        # "clean": config.clean_html,
     }
 
-    logging.debug(f"Data: {metadata_json_str}")
+    logging.debug(f"Data: {data_payload['args']}")
 
-    send_request(url, files, data_payload, parsed_args["output"])
+    send_request(config.url, files, data_payload, parsed_args["output"])
 
     sys.exit(0)
