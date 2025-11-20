@@ -202,6 +202,8 @@ def main(args: list | None = None) -> None:
     if not args:
         sys.exit(0)
 
+    logging.debug(" ".join(args))
+
     config = ProxyConfig.load()
 
     # Emulate wkhtmltopdf version command
@@ -286,7 +288,7 @@ def main(args: list | None = None) -> None:
         "header": os.path.basename(header_path),
         "footer": os.path.basename(footer_path),
         "output": guess_output(paths, config.threshold),
-        # "clean": config.clean_html,
+        "clean": config.clean_html,
     }
 
     logging.debug(f"Data: {data_payload['args']}")
