@@ -294,6 +294,8 @@ def main(args: list | None = None) -> None:
 
     logging.debug(f"Data: {data_payload['args']}")
 
-    send_request(config.url, files, data_payload, parsed_args["output"])
+    send_request(
+        config.url, files, data_payload, parsed_args["output"], timeout=config.timeout
+    )
 
     sys.exit(0)
