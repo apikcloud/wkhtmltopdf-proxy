@@ -59,7 +59,7 @@ class ProxyConfig:
             timeout=int(os.getenv("WKHTMLTOPDF_PROXY_TIMEOUT", 600)),
             version=os.getenv("WKHTMLTOPDF_PROXY_VERSION", "0.12.6"),
             threshold=int(os.getenv("WKHTMLTOPDF_PROXY_THRESHOLD", 2 * 1024 * 1024)),
-            clean_html=bool(int(os.getenv("WKHTMLTOPDF_CLEAN_HTML", 0))),
+            clean_html=bool(int(os.getenv("WKHTMLTOPDF_PROXY_CLEAN_HTML", 0))),
             mode=cast(Literal["auto", "local", "remote"], mode),
             url=os.getenv("WKHTMLTOPDF_PROXY_URL", ""),
             skip_cookie=bool(int(os.getenv("WKHTMLTOPDF_PROXY_SKIP_COOKIE", 0))),
@@ -202,7 +202,8 @@ def main(args: list | None = None) -> None:
     if not args:
         sys.exit(0)
 
-    logging.debug(" ".join(args))
+    original_cmd = " ".join(["wkhtmltopdf"] + args)
+    logging.debug(f"Original command: \n{original_cmd}")
 
     config = ProxyConfig.load()
 
